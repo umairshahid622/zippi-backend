@@ -188,13 +188,13 @@ export class AuthController {
   }
 
   // GET /api/auth/me
-  static getMe = async (
+  static getUser = async (
     req:  Request,
     res:  Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const result = await AuthService.getMe(req.user!.id)
+      const result = await AuthService.getUser(req.user!.id)
       res.status(200).json(result)
     } catch (err) {
       next(err)

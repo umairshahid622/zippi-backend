@@ -51,7 +51,7 @@ router.patch(
 router.get(
   '/me',
   authMiddleware,
-  AuthController.getMe
+  AuthController.getUser
 )
 
 // POST /api/auth/logout  → invalidate session

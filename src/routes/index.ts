@@ -20,7 +20,7 @@ export const registerRoutes = (app: Application): void => {
   })
 
   // 404 handler
-  app.use('*', (_, res) => {
+  app.use((_, res) => {
     res.status(404).json({ message: 'Route not found' })
   })
 }

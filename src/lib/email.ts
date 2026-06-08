@@ -1,12 +1,30 @@
 import { Resend }  from 'resend'
 import { env }     from '../config/env.js'
 
-const resend = new Resend(env.RESEND_API_KEY)
+const getResend = (): Resend => {
+  if (!env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not set in .env')
+  }
+  return new Resend(env.RESEND_API_KEY)
+}
+
+
+
 
 export const sendOTPEmail = async (
   email: string,
   otp:   string
 ): Promise<void> => {
+
+
+
+  if (env.NODE_ENV === 'development') {
+    console.log('─────────────────────────────────')
+    console.log(`📧 OTP for ${email}: ${otp}`)
+    console.log('─────────────────────────────────')
+    return
+  };
+  const resend = getResend()
   await resend.emails.send({
     from:    'Zippi <noreply@zippi.app>',
     to:      email,
