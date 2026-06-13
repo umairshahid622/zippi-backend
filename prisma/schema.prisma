@@ -81,6 +81,7 @@ model User {
   taskComments       TaskComment[]
   uploadedFiles      File[]
   notifications      Notification[]
+  sessions           Session[]
 
   @@map("users")
 }
@@ -377,4 +378,21 @@ model Notification {
   @@index([userId, createdAt])
   @@index([workspaceId])
   @@map("notifications")
+}
+
+// ── SESSION DOMAIN ──────────────────────
+model Session {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  refreshToken String    @unique @map("refresh_token")
+  expiresAt    DateTime  @map("expires_at")
+  ipAddress    String?   @map("ip_address")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("sessions")
 }
