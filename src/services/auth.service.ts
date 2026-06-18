@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import { prisma } from "../config/database.js";
-import { signAccessToken, signRefreshToken } from "../lib/jwt.js";
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "../lib/jwt.js";
 import { sendOTPEmail } from "../lib/email.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { type UpdateProfileInput } from "../validators/auth.validator.js";
@@ -53,8 +57,8 @@ export class AuthService {
         userId,
         refreshToken: refreshTokenHash,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        ipAddress,
-        userAgent,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
       },
     });
 
@@ -112,7 +116,12 @@ export class AuthService {
   }
 
   // ── Verify OTP ────────────────────────────────────────
-  static async verifyOTP(email: string, otp: string) {
+  static async verifyOTP(
+    email: string,
+    otp: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const tokenHash = AuthService.hashToken(otp);
 
     // Find the token
@@ -142,17 +151,18 @@ export class AuthService {
       data: { isOnline: true, lastSeenAt: new Date() },
     });
 
-    // Issue JWT
-    const token = signAccessToken({
-      userId: magicToken.user!.id,
-      email: magicToken.user!.email,
-    });
+    const { accessToken, refreshToken } = await AuthService.createSession(
+      magicToken.user!.id,
+      ipAddress,
+      userAgent,
+    );
 
     // Is this a new user? (no name set yet)
     const isNewUser = !magicToken.user!.fullName;
 
     return {
-      token,
+      token: accessToken,
+      refreshToken,
       isNewUser,
       user: {
         id: magicToken.user!.id,
@@ -164,6 +174,59 @@ export class AuthService {
     };
   }
 
+  // ── Refresh access token ──────────────────────
+  static async refreshAccessToken(refreshToken: string) {
+    // Verify the JWT signature first
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) throw new AppError("Invalid refresh token", 401);
+
+    // Check if session exists in DB
+    const tokenHash = AuthService.hashToken(refreshToken);
+    const session = await prisma.session.findUnique({
+      where: { refreshToken: tokenHash },
+      include: { user: true },
+    });
+
+    if (!session) throw new AppError("Session not found", 401);
+
+    // Check if session expired
+    if (session.expiresAt < new Date()) {
+      await prisma.session.delete({ where: { id: session.id } });
+      throw new AppError("Session expired. Please login again.", 401);
+    }
+
+    // ✅ Rotate refresh token — issue new ones
+    const newAccessToken = signAccessToken({
+      userId: session.user.id,
+      email: session.user.email,
+    });
+    const newRefreshToken = signRefreshToken({
+      userId: session.user.id,
+      email: session.user.email,
+    });
+
+    // Replace old refresh token with new one
+    await prisma.session.update({
+      where: { id: session.id },
+      data: {
+        refreshToken: AuthService.hashToken(newRefreshToken),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        fullName: session.user.fullName,
+        avatarUrl: session.user.avatarUrl,
+        handle: session.user.handle,
+      },
+    };
+  }
+
   // ── Handle OAuth (Google + GitHub) ────────────────────
   static async handleOAuth(payload: {
     provider: string;
@@ -171,6 +234,8 @@ export class AuthService {
     email: string;
     fullName: string;
     avatarUrl: string;
+    ipAddress?: string;
+    userAgent?: string;
   }) {
     // Check if OAuth account already exists
     const existingOAuth = await prisma.oAuthAccount.findUnique({
@@ -184,14 +249,15 @@ export class AuthService {
     });
 
     if (existingOAuth) {
-      // Returning user — just issue token
-      const token = signAccessToken({
-        userId: existingOAuth.user.id,
-        email: existingOAuth.user.email,
-      });
+      const { accessToken, refreshToken } = await AuthService.createSession(
+        existingOAuth.user.id,
+        payload.ipAddress,
+        payload.userAgent,
+      );
 
       return {
-        token,
+        token: accessToken,
+        refreshToken,
         isNewUser: false,
         user: existingOAuth.user,
       };
@@ -222,13 +288,15 @@ export class AuthService {
       },
     });
 
-    const token = signAccessToken({
-      userId: user.id,
-      email: user.email,
-    });
+    const { accessToken, refreshToken } = await AuthService.createSession(
+      user.id,
+      payload.ipAddress,
+      payload.userAgent,
+    );
 
     return {
-      token,
+      token: accessToken,
+      refreshToken,
       isNewUser: !user.fullName,
       user,
     };
@@ -291,16 +359,28 @@ export class AuthService {
     return { user };
   }
 
-  // ── Logout ────────────────────────────────────────────
-  static async logout(userId: string) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        isOnline: false,
-        lastSeenAt: new Date(),
+  // ── Logout — delete session ───────────────────
+  static async logout(refreshToken: string, userId: string) {
+    const tokenHash = AuthService.hashToken(refreshToken);
+
+    await prisma.session.deleteMany({
+      where: {
+        userId,
+        refreshToken: tokenHash,
       },
     });
 
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isOnline: false, lastSeenAt: new Date() },
+    });
+
     return { message: "Logged out successfully" };
+  }
+
+  // ── Logout all devices ────────────────────────
+  static async logoutAllDevices(userId: string) {
+    await prisma.session.deleteMany({ where: { userId } });
+    return { message: "Logged out from all devices" };
   }
 }

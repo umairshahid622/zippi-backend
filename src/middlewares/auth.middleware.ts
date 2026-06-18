@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from 'express'
-import { verifyToken }                     from '../lib/jwt.js'
+import { verifyAccessToken }              from '../lib/jwt.js'
 import { prisma }                          from '../config/database.js'
 
 // Extend Express Request to include user
@@ -33,7 +33,7 @@ export const authMiddleware = async (
     const token = authHeader.split(' ')[1]
 
     // Verify JWT
-    const payload = verifyToken(token ?? "")
+    const payload = verifyAccessToken(token ?? "")
     if (!payload) {
       res.status(401).json({ message: 'Invalid or expired token' })
       return
