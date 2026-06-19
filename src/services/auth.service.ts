@@ -38,29 +38,32 @@ export class AuthService {
     // Hash refresh token before storing
     const refreshTokenHash = AuthService.hashToken(refreshToken);
 
-    // Delete old sessions for this user (optional — keep last 5)
-    const sessions = await prisma.session.findMany({
+    const recentSessions = await prisma.session.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: 4,
+      select: { id: true },
     });
 
-    if (sessions.length >= 5) {
-      const oldestIds = sessions.slice(4).map((s) => s.id);
-      await prisma.session.deleteMany({
-        where: { id: { in: oldestIds } },
-      });
-    }
+    const keepIds = recentSessions.map((s) => s.id);
 
-    // Store new session
-    await prisma.session.create({
-      data: {
-        userId,
-        refreshToken: refreshTokenHash,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        ipAddress: ipAddress ?? null,
-        userAgent: userAgent ?? null,
-      },
-    });
+    await prisma.$transaction([
+      prisma.session.deleteMany({
+        where: {
+          userId,
+          id: { notIn: keepIds },
+        },
+      }),
+      prisma.session.create({
+        data: {
+          userId,
+          refreshToken: refreshTokenHash,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
+        },
+      }),
+    ]);
 
     return { accessToken, refreshToken };
   }
@@ -77,39 +80,36 @@ export class AuthService {
       },
     });
 
-    // if (recentTokens >= 3) {
-    //   throw new AppError('Too many requests. Try again in an hour.', 429)
-    // }
+    if (recentTokens >= 3) {
+      throw new AppError("Too many requests. Try again in an hour.", 429);
+    }
 
-    // Invalidate all previous unused tokens for this email
-    await prisma.magicToken.updateMany({
-      where: { email, used: false },
-      data: { used: true },
+    // 2. Find or create user — single upsert
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email },
     });
 
-    // Generate OTP
+    // 3. Generate OTP
     const otp = AuthService.generateOTP();
     const tokenHash = AuthService.hashToken(otp);
 
-    // Find or create user
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { email },
-      });
-    }
+    await prisma.$transaction([
+      prisma.magicToken.updateMany({
+        where: { email, used: false },
+        data: { used: true },
+      }),
+      prisma.magicToken.create({
+        data: {
+          userId: user.id,
+          email,
+          tokenHash,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        },
+      }),
+    ]);
 
-    // Store hashed token with 15 min expiry
-    await prisma.magicToken.create({
-      data: {
-        userId: user.id,
-        email,
-        tokenHash,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-      },
-    });
-
-    // Send email
     await sendOTPEmail(email, otp);
 
     return { message: "OTP sent successfully" };
@@ -140,16 +140,16 @@ export class AuthService {
     }
 
     // Mark token as used — one time use only
-    await prisma.magicToken.update({
-      where: { id: magicToken.id },
-      data: { used: true },
-    });
-
-    // Update user online status
-    await prisma.user.update({
-      where: { id: magicToken.userId! },
-      data: { isOnline: true, lastSeenAt: new Date() },
-    });
+    await prisma.$transaction([
+      prisma.magicToken.update({
+        where: { id: magicToken.id },
+        data: { used: true },
+      }),
+      prisma.user.update({
+        where: { id: magicToken.userId! },
+        data: { isOnline: true, lastSeenAt: new Date() },
+      }),
+    ]);
 
     const { accessToken, refreshToken } = await AuthService.createSession(
       magicToken.user!.id,
@@ -162,8 +162,8 @@ export class AuthService {
 
     return {
       token: accessToken,
-      refreshToken,
-      isNewUser,
+      refreshToken: refreshToken,
+      isNewUser: isNewUser,
       user: {
         id: magicToken.user!.id,
         email: magicToken.user!.email,
@@ -263,43 +263,78 @@ export class AuthService {
       };
     }
 
-    // New OAuth user — check if email already exists
-    let user = await prisma.user.findUnique({
-      where: { email: payload.email },
-    });
-
-    if (!user) {
-      // Brand new user
-      user = await prisma.user.create({
-        data: {
+    const oAuthAccount = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.upsert({
+        where: { email: payload.email },
+        update: {},
+        create: {
           email: payload.email,
           fullName: payload.fullName,
           avatarUrl: payload.avatarUrl,
         },
       });
-    }
 
-    // Link OAuth account to user
-    await prisma.oAuthAccount.create({
-      data: {
-        userId: user.id,
-        provider: payload.provider,
-        providerId: payload.providerId,
-      },
+      const account = await tx.oAuthAccount.create({
+        data: {
+          userId: user.id,
+          provider: payload.provider,
+          providerId: payload.providerId,
+        },
+      });
+
+      return { ...account, user };
     });
 
     const { accessToken, refreshToken } = await AuthService.createSession(
-      user.id,
+      oAuthAccount.user.id,
       payload.ipAddress,
       payload.userAgent,
     );
 
     return {
       token: accessToken,
-      refreshToken,
-      isNewUser: !user.fullName,
-      user,
+      refreshToken: refreshToken,
+      isNewUser: !oAuthAccount.user.fullName,
+      user: oAuthAccount.user,
     };
+
+    // // New OAuth user — check if email already exists
+    // let user = await prisma.user.findUnique({
+    //   where: { email: payload.email },
+    // });
+
+    // if (!user) {
+    //   // Brand new user
+    //   user = await prisma.user.create({
+    //     data: {
+    //       email: payload.email,
+    //       fullName: payload.fullName,
+    //       avatarUrl: payload.avatarUrl,
+    //     },
+    //   });
+    // }
+
+    // // Link OAuth account to user
+    // await prisma.oAuthAccount.create({
+    //   data: {
+    //     userId: user.id,
+    //     provider: payload.provider,
+    //     providerId: payload.providerId,
+    //   },
+    // });
+
+    // const { accessToken, refreshToken } = await AuthService.createSession(
+    //   user.id,
+    //   payload.ipAddress,
+    //   payload.userAgent,
+    // );
+
+    // return {
+    //   token: accessToken,
+    //   refreshToken,
+    //   isNewUser: !user.fullName,
+    //   user,
+    // };
   }
 
   // ── Update profile (onboarding step) ─────────────────
