@@ -80,9 +80,9 @@ export class AuthService {
       },
     });
 
-    if (recentTokens >= 3) {
-      throw new AppError("Too many requests. Try again in an hour.", 429);
-    }
+    // if (recentTokens >= 3) {
+    //   throw new AppError("Too many requests. Try again in an hour.", 429);
+    // }
 
     // 2. Find or create user — single upsert
     const user = await prisma.user.upsert({

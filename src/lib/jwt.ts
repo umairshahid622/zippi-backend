@@ -1,37 +1,40 @@
-import jwt            from 'jsonwebtoken'
-import { env }        from '../config/env.js'
+import jwt, { type SignOptions } from "jsonwebtoken";
+import { env } from "../config/env.js";
 
 interface TokenPayload {
-  userId: string
-  email:  string
+  userId: string;
+  email: string;
 }
+
+type JwtExpiry = NonNullable<SignOptions["expiresIn"]>;
 
 export const signAccessToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as unknown as number,
-  })
-}
+  const options: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as JwtExpiry,
+  };
+
+  return jwt.sign(payload, env.JWT_SECRET, options);
+};
 
 export const signRefreshToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES_IN as unknown as number,
-  })
-}
-
-
+  const options: SignOptions = {
+    expiresIn: env.JWT_REFRESH_EXPIRES_IN as JwtExpiry,
+  };
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, options);
+};
 
 export const verifyAccessToken = (token: string): TokenPayload | null => {
   try {
-    return jwt.verify(token, env.JWT_SECRET) as TokenPayload
+    return jwt.verify(token, env.JWT_SECRET) as TokenPayload;
   } catch {
-    return null
+    return null;
   }
-}
+};
 
 export const verifyRefreshToken = (token: string): TokenPayload | null => {
   try {
-    return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload
+    return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
   } catch {
-    return null
+    return null;
   }
-}
+};
