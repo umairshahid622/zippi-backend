@@ -38,20 +38,6 @@ export class AuthController {
     }
   };
 
-  // GET /api/auth/google
-  static googleAuth = (req: Request, res: Response): void => {
-    const params = new URLSearchParams({
-      client_id: env.GOOGLE_CLIENT_ID!,
-      redirect_uri: `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
-      response_type: "code",
-      scope: "openid email profile",
-    });
-
-    res.redirect(
-      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-    );
-  };
-
   // POST /api/auth/refresh
   static refreshToken = async (
     req: Request,
@@ -71,6 +57,20 @@ export class AuthController {
     } catch (err) {
       next(err);
     }
+  };
+
+  // GET /api/auth/google
+  static googleAuth = (req: Request, res: Response): void => {
+    const params = new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID!,
+      redirect_uri: `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
+      response_type: "code",
+      scope: "openid email profile",
+    });
+
+    res.redirect(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    );
   };
 
   // GET /api/auth/google/callback
