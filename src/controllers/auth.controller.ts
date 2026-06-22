@@ -61,9 +61,13 @@ export class AuthController {
 
   // GET /api/auth/google
   static googleAuth = (req: Request, res: Response): void => {
+    const redirectUri = `${env.BASE_URL}:${env.PORT}/api/auth/google/callback`;
+    console.log(redirectUri);
+    
+    
     const params = new URLSearchParams({
-      client_id: env.GOOGLE_CLIENT_ID!,
-      redirect_uri: `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
+      client_id: env.GOOGLE_CLIENT_ID,
+      redirect_uri: redirectUri,
       response_type: "code",
       scope: "openid email profile",
     });
@@ -81,7 +85,9 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { code } = req.query;
-
+      const redirectUri = `${env.BASE_URL}:${env.PORT}/api/auth/google/callback`;
+      console.log('auth Call Back Called');
+      
       // Exchange code for tokens
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -90,7 +96,7 @@ export class AuthController {
           code,
           client_id: env.GOOGLE_CLIENT_ID,
           client_secret: env.GOOGLE_CLIENT_SECRET,
-          redirect_uri: `${req.protocol}://${req.get("host")}/api/auth/google/callback`,
+          redirect_uri: redirectUri,
           grant_type: "authorization_code",
         }),
       });
@@ -119,7 +125,7 @@ export class AuthController {
 
       // Redirect to frontend with token
       res.redirect(
-        `${env.CLIENT_URL}/auth/callback?token=${result.token}&isNewUser=${result.isNewUser}`,
+        `${env.CLIENT_URL}/auth/callback?token=${result.token}&refreshToken=${result.refreshToken}&isNewUser=${result.isNewUser}`,
       );
     } catch (err) {
       next(err);

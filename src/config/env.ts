@@ -5,6 +5,7 @@ const envSchema = z.object({
   NODE_ENV:               z.enum(['development', 'production', 'test']).default('development'),
   PORT:                   z.coerce.number().default(5000),
   DATABASE_URL:           z.string(),
+  BASE_URL:               z.string(),
   JWT_SECRET:             z.string().min(32),
   JWT_EXPIRES_IN:         z.string().default('1h'),
   JWT_REFRESH_SECRET:     z.string().min(32),
@@ -12,7 +13,7 @@ const envSchema = z.object({
   RESEND_API_KEY:         z.string().optional(),   // ← optional for local dev
   CLIENT_URL:             z.string().optional(),   // ← optional for local dev
   CLOUDFLARE_R2_URL:      z.string().optional(),   // ← optional for local dev
-  GOOGLE_CLIENT_ID:       z.string().optional(),
+  GOOGLE_CLIENT_ID:       z.string(),
   GOOGLE_CLIENT_SECRET:   z.string().optional(),
 })
 
