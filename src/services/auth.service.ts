@@ -70,28 +70,13 @@ export class AuthService {
 
   // ── Send magic link / OTP ─────────────────────────────
   static async sendMagicLink(email: string) {
-    // Rate limit — max 3 OTPs per email per hour
-    const recentTokens = await prisma.magicToken.count({
-      where: {
-        email,
-        createdAt: {
-          gte: new Date(Date.now() - 60 * 60 * 1000), // last 1 hour
-        },
-      },
-    });
-
-    // if (recentTokens >= 3) {
-    //   throw new AppError("Too many requests. Try again in an hour.", 429);
-    // }
-
-    // 2. Find or create user — single upsert
+      
     const user = await prisma.user.upsert({
       where: { email },
       update: {},
       create: { email },
     });
-
-    // 3. Generate OTP
+    
     const otp = AuthService.generateOTP();
     const tokenHash = AuthService.hashToken(otp);
 

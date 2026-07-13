@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { magicLinkLimiter } from "../middlewares/rateLimit.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   sendMagicLinkSchema,
@@ -14,6 +15,7 @@ const router = Router();
 // POST /api/auth/magic-link  → send OTP to email
 router.post(
   "/magic-link",
+  magicLinkLimiter,
   validate(sendMagicLinkSchema),
   AuthController.sendMagicLink,
 );

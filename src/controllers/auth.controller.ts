@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { AuthService } from "../services/auth.service.js";
 import { env } from "../config/env.js";
+import { email } from "zod";
 
 export class AuthController {
   // POST /api/auth/magic-link
@@ -63,8 +64,7 @@ export class AuthController {
   static googleAuth = (req: Request, res: Response): void => {
     const redirectUri = `${env.BASE_URL}:${env.PORT}/api/auth/google/callback`;
     console.log(redirectUri);
-    
-    
+
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
@@ -86,8 +86,8 @@ export class AuthController {
     try {
       const { code } = req.query;
       const redirectUri = `${env.BASE_URL}:${env.PORT}/api/auth/google/callback`;
-      console.log('auth Call Back Called');
-      
+      console.log("auth Call Back Called");
+
       // Exchange code for tokens
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -124,9 +124,9 @@ export class AuthController {
       });
 
       // Redirect to frontend with token
-      res.redirect(
-        `${env.CLIENT_URL}/auth/callback?token=${result.token}&refreshToken=${result.refreshToken}&isNewUser=${result.isNewUser}`,
-      );
+      const url = `${env.CLIENT_URL}/auth/callback?token=${result.token}&refreshToken=${result.refreshToken}&userId=${result.user.id}&email=${result.user.email}&fullName=${profile.name}&profilePicture=${profile.picture}`;
+      // console.log(url);      
+      res.redirect(url);
     } catch (err) {
       next(err);
     }
