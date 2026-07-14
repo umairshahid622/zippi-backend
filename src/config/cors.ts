@@ -7,6 +7,7 @@ const allowedOrigins: string[] = [
   'http://localhost:5173',   // Vite dev server (React)
   'http://localhost:5174',   // Vite alt port
   'http://localhost:3000',   // Sometimes used for React
+  'http://localhost:3010',   // Sometimes used for React
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
 ]

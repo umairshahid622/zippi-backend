@@ -6,6 +6,7 @@ import { corsConfig } from "./config/cors.js";
 import { registerRoutes } from "./routes/index.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { generalLimiter } from "./middlewares/rateLimit.middleware.js";
+import { setupSwagger } from "./docs/swagger.js";
 
 export const createApp = (): Application => {
   const app = express();
@@ -25,6 +26,9 @@ export const createApp = (): Application => {
   if (process.env.NODE_ENV === "development") {
     app.use(morgan("dev"));
   }
+
+  // ── Swagger docs ──
+  setupSwagger(app);
 
   // ── Routes ──
   registerRoutes(app);
