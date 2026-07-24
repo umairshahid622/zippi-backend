@@ -11,6 +11,7 @@ import {
   updateMemberRoleSchema,
   removeMemberSchema,
 } from '../validators/workspace.validator.js'
+import channelRoutes from './channel.routes.js'
 
 const router = Router()
 
@@ -262,5 +263,8 @@ router.delete(
   validate(removeMemberSchema),
   WorkspaceController.removeMember
 )
+
+
+router.use('/:workspaceId/channels', channelRoutes)
 
 export default router

@@ -1,0 +1,6 @@
+// src/lib/object.ts
+export const omitUndefined = <T extends Record<string, unknown>>(obj: T): Partial<T> => {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as Partial<T>
+}
