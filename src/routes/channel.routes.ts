@@ -12,6 +12,7 @@ import {
   createDmSchema,
   markAsReadSchema,
 } from '../validators/channel.validator.js'
+import messageRoutes from './message.routes.js'
 
 // mergeParams lets this router access :workspaceId from the parent router
 const router = Router({ mergeParams: true })
@@ -94,5 +95,8 @@ router.post(
   validate(markAsReadSchema),
   ChannelController.markAsRead
 )
+
+router.use('/:channelId/messages', messageRoutes)
+
 
 export default router

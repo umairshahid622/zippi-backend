@@ -1,7 +1,6 @@
 import { type Application } from 'express'
 import authRoutes      from './auth.routes.js'
 import workspaceRoutes from './workspace.routes.js'
-// import channelRoutes   from './channel.routes'
 // import messageRoutes   from './message.routes'
 // import taskRoutes      from './task.routes'
 // import fileRoutes      from './file.routes'
@@ -9,8 +8,7 @@ import workspaceRoutes from './workspace.routes.js'
 export const registerRoutes = (app: Application): void => {
   app.use('/api/auth',       authRoutes)
   app.use('/api/workspaces', workspaceRoutes)
-//   app.use('/api/channels',   channelRoutes)
-//   app.use('/api/messages',   messageRoutes)
+  // app.use('/api/messages',   messageRoutes)
 //   app.use('/api/tasks',      taskRoutes)
 //   app.use('/api/files',      fileRoutes)
 
